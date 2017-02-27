@@ -1,0 +1,6 @@
+.DS_Store
+apidoc.html
+apidoc.html.json
+cmd/myappweb/myapp.db
+cmd/myappweb/myappweb
+/myappweb
