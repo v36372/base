@@ -8,45 +8,43 @@ import (
 	"path"
 	"runtime"
 
-	"github.com/betacraft/yaag/middleware"
-	"github.com/betacraft/yaag/yaag"
 	"github.com/boltdb/bolt"
 	"github.com/gorilla/context"
 	"github.com/justinas/alice"
 	"github.com/kardianos/osext"
 	"github.com/spf13/viper"
 
-	"myapp"
+	"base"
 )
 
-const isDevelopment = "true"
+type baseConfig struct {
+	Port string
+}
 
 // App in main app
 type App struct {
 	router *Router
-	gp     globalPresenter
 	logr   appLogger
-}
-
-// globalPresenter contains the fields neccessary for presenting in all templates
-type globalPresenter struct {
-	SiteName    string
-	Description string
-	SiteURL     string
+	config baseConfig
 }
 
 // SetupApp setup all condition for start project
-// TODO localPresenter if we have using template
-func SetupApp(r *Router, logger appLogger, templateDirectoryPath string) *App {
-	gp := globalPresenter{
-		SiteName:    "MyApp",
-		Description: "Template web api application",
-		SiteURL:     "",
+func SetupApp(r *Router, logger appLogger) *App {
+	var config baseConfig
+	if viper.GetBool("isDevelopment") {
+		config = baseConfig{
+			Port: viper.GetString("port"),
+		}
+	} else {
+		config = baseConfig{
+			Port: os.Getenv("PORT"),
+		}
 	}
+
 	return &App{
 		router: r,
-		gp:     gp,
 		logr:   logger,
+		config: config,
 	}
 }
 
@@ -56,11 +54,11 @@ func main() {
 		log.Fatalf("cannot retrieve present working directory: %s", err)
 	}
 
-	boltdb, err := bolt.Open(path.Join(pwd, "myapp.db"), 0600, nil)
+	boltdb, err := bolt.Open(path.Join(pwd, "base.db"), 0600, nil)
 	if err != nil {
 		log.Fatalf("unable to open bolt db: %s", err)
 	}
-	db := &myapp.DB{boltdb}
+	db := &base.DB{boltdb}
 	err = db.CreateAllBuckets()
 	if err != nil {
 		log.Fatalf("unable to CreateAllBucketsreate all bucket: %s", err)
@@ -70,17 +68,14 @@ func main() {
 	if err != nil && viper.GetBool("isProduction") {
 		panic(fmt.Errorf("fatal error config file: %s ", err))
 	}
-	//TODO config static file path and template file path
 
 	r := NewRouter()
 	logr := newLogger()
-	a := SetupApp(r, logr, "")
-	yaag.Init(&yaag.Config{On: true, DocTitle: "Core", DocPath: "apidoc.html", BaseUrls: map[string]string{"Production": "", "Staging": ""}})
+	a := SetupApp(r, logr)
 
-	common := alice.New(context.ClearHandler, a.loggingHandler, a.recoverHandler, middleware.Handle)
-	//auth := common.Append(a.authMiddleware(db))
+	common := alice.New(context.ClearHandler, a.loggingHandler, a.recoverHandler)
 
-	r.Post("/login", common.Then(a.Wrap(a.LoginHandler(db))))
+	r.Post("/", common.Then(a.Wrap(a.IndexHandler(db))))
 
 	err = http.ListenAndServe(":3000", r)
 	if err != nil {
@@ -96,9 +91,9 @@ func main() {
 
 // LoadConfiguration load file config in directory
 func LoadConfiguration(pwd string) error {
-	viper.SetConfigName("myapp-config")
+	viper.SetConfigName("base-config")
 	viper.AddConfigPath(pwd)
-	devPath := pwd[:len(pwd)-3] + "/src/myapp/cmd/myappweb/"
+	devPath := pwd[:len(pwd)-3] + "/src/base/cmd/base/"
 	_, file, _, _ := runtime.Caller(1)
 	configPath := path.Dir(file)
 	viper.AddConfigPath(devPath)

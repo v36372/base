@@ -1,9 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
-	"net"
 	"net/http"
 )
 
@@ -70,14 +67,6 @@ func (rw *responseWriter) Written() bool {
 
 func (rw *responseWriter) Before(before func(ResponseWriter)) {
 	rw.beforeFuncs = append(rw.beforeFuncs, before)
-}
-
-func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	hijacker, ok := rw.ResponseWriter.(http.Hijacker)
-	if !ok {
-		return nil, nil, fmt.Errorf("The ResponseWriter doesn't support the Hijacker interface")
-	}
-	return hijacker.Hijack()
 }
 
 func (rw *responseWriter) CloseNotify() <-chan bool {
